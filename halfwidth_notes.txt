@@ -1,0 +1,133 @@
+fu (lil u) , ku (lil tsu) ta bi re? ta
+46 (??) (??) 32 5c 3a 
+
+Looking at 3a right now. Would be great to turn into ascii "?" (4 to the right), then ascii ":" (4 to the right, 5 up)
+
+Initial value (3a) gets stored in al, then sub 20
+xor ah, ah
+shl ax, 1
+add bx, ax
+
+...
+mov ah, 50  (now 5034)
+interrupt
+
+
+0ac7: 08ea1f sub dl, 1f
+... 
+13d0:0ad2 81c2a11f add dx, 1fa1
+0ad2 81e27f7f and dx, 7f7f
+0ada 80ee20 sub dh, 20
+0add b00b mov al, 0b
+
+So it's at 0x243f, then
+
+sub dh, 20
+(like the sub ax, 2000 in Rusty)
+
+It reads all the two-byte characters okay, though as garbage due to the shifting... Would the proper first step be to figure out where that first byte goes, then load it automatically?
+
+First byte:
+lodsb (goes into al)
+Goes into dh, then lodsb immediately for the second byte
+
+mov dx, 0033: 65ba3300 (90 90 90)
+
+Need to do this mapping:
+"A" 41 -> 04ab -> ab04 -> 4100
+"B" 42 -> 04ac -> ac04 -> 4200
+"C" 43 -> 04ad
+"D" 44 -> 04ae -> ae04 -> 4400
+"E" 45 -> 04b1 (?)
+"F" 46 -> 04b4
+"G" 47 -> 04b7
+
+"T" 54 -> 04cb -> cb04 -> 6100, not 5400. That's bad
+
+OK. So, the substitution compression is not in SJIS order... The table is at 0xcc3e in WS.COM. Before all this, it subtracts 20 from al, then puts the table's value in dx.
+
+Maybe I can just take the AX value and do math to that instead?? ANd ignore the deciphering??
+
+ax value transformations:
+"A" 41 -> 5042 -> 4100
+"B" 42 -> 5044 -> 4200
+"C" 43 -> 5046 -> 4300
+
+42 -> 4100
+44 -> 4200
+46 -> 4300
+
+THE REALLY REALLY REAL HACK:
+at 13d0:0ac7, insert:
+30E42C40D0F8044086E06689C2909090909090909090
+
+(original text is 80ea1f780680fa6180d2...)
+DRBIOS.COM, at 0x9c7
+
+30e4 xor ah, ah
+sub al, 0x40
+sar ax, 1           ; divide by 2 with a flag
+add al, 0x40
+xchg al, ah
+mov dx, ax
+
+The really real hack:
+86f2 xchg dl, dh
+81ea046a sub dx, 6a04
+
+
+replace the add at 13d0:0ad6 with:
+
+81c2fa77 add dx, 0x77fa
+9090909090
+
+Loads 61, goes to 609 before the add/and
+
+If I get rid of the add & and, I should have 8 bytes of math to work with.
+
+CURSOR STUFF
+
+13d0:0b4b, replace 19 with 32
+(Original text is 80fc19720232e433c986, at 0xa4b in DRBIOS.COM
+13d0:0b56, replace d1e0 with 0406
+(Original is at 0xc2c in DRBIOS.COM
+
+So, the cursor is in EBX when text is being read. 
+Top byte: Row. Multiply by 16 to get pixel location
+Bottom byte: column. Multiply by 16 to get pixel location
+
+There's a check at 13d0:0b4b...
+cmp ah, 19
+jb 0b52
+(If it's going past pixel 400, do something else)
+I'll need to change this to 0x32 if I halve the effect of the cursor.
+
+Top goes into cl, then bottom gets shl'd 1, to end up as 18
+13d0:0b56 d1e0 shl ax, 1
+How about I remove that shl instruction? (Seems to have the desired effect of squishing the text)
+I should replace it with something that just adds the right number to it. (04 06 fits perfectly)
+
+Adding a single number like this is not the way to go... I need to find out where the initial column values are being set, and change it there.
+
+What happens when the newline control code (0x4) is read? How does it know what column to return to?
+
+18ae:2467 2e8b5e0c mov bx, cs:[bp+0c] (1407, initial cursor val)
+246b mov ax, cs:[bp+0a]               (140a, current cursor val)
+mov al, bl
+inc ah
+...
+mov cs:[bp+0a], ax
+
+Value is 07 for green girl, 1b for blue girl
+
+Control codes leading up to blue's dialogue: ff 0e 0c 01
+1b is loaded before 01, after 0c
+
+Gets set here: 
+18ae:26b7 2e895e0c     mov cs:[bp+oc], bx   (141b)
+Right before that is something with 1b14!
+Some instruction "10 bb 1b 14" sets bx maybe?
+Left window's  initial cursor is at 0x2532 in WS.COM
+Right window's initial cursor is at 0x25b5 in WS.COM
+
+Menu's initial cursor is right before the text. 07 03 (5e9a in WS.COM)
