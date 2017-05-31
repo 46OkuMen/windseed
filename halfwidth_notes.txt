@@ -60,6 +60,7 @@ ax value transformations:
 THE REALLY REALLY REAL HACK:
 at 13d0:0ac7, insert:
 30E42C40D0F8044086E06689C2909090909090909090
+\x30\xE4\x2C\x40\xD0\xF8\x04\x40\x86\xE0\x66\x89\xC2\x90\x90\x90\x90\x90\x90\x90\x9090
 
 (original text is 80ea1f780680fa6180d2...)
 DRBIOS.COM, at 0x9c7
@@ -89,8 +90,8 @@ CURSOR STUFF
 
 13d0:0b4b, replace 19 with 32
 (Original text is 80fc19720232e433c986, at 0xa4b in DRBIOS.COM
-13d0:0b56, replace d1e0 with 0406
-(Original is at 0xc2c in DRBIOS.COM
+13d0:0b56, replace d1e0 with 9090
+(Original is at 0xa56 in DRBIOS.COM
 
 So, the cursor is in EBX when text is being read. 
 Top byte: Row. Multiply by 16 to get pixel location
@@ -131,3 +132,12 @@ Left window's  initial cursor is at 0x2532 in WS.COM
 Right window's initial cursor is at 0x25b5 in WS.COM
 
 Menu's initial cursor is right before the text. 07 03 (5e9a in WS.COM)
+
+TEXT EXTRACTION
+celcion (of Nebulous Translations) wrote an extraction tool, plus a table that could be used to write an extractor of my own.
+
+Simple substitution - single byte ASCII and halfwidth kana values are mapped to a double-byte kana table at the end of WS.COM (?).
+
+
+IMAGE STUFF
+That "MONEY" thing is almost certainly a graphic...
